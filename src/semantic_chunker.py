@@ -20,7 +20,7 @@ BREAKPOINT_DEFAULTS: Dict[BreakpointThresholdType, float] = {
 }    
 
 class SemanticChunker:
-    
+    # https://github.com/langchain-ai/langchain-experimental/blob/main/libs/experimental/langchain_experimental/text_splitter.py
     def __init__(
         self,
         breakpoint_threshold_type: BreakpointThresholdType = "percentile",
@@ -186,7 +186,7 @@ def ja_sentence_splitter_init() -> Generator[str, None, None]:
         split_punc2, 
         concat_decimal
     )
-
+# https://github.com/langchain-ai/langchain-community/blob/main/libs/community/langchain_community/utils/math.py
 Matrix = Union[List[List[float]], List[np.ndarray], np.ndarray]
 def cosine_similarity(X: Matrix, Y: Matrix) -> np.ndarray:
     """Row-wise cosine similarity between two equal-width matrices."""
