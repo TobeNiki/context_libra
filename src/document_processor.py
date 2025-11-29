@@ -7,7 +7,7 @@ import hashlib
 import time
 import numpy as np
 import markitdown
-from semantic_chunker import SemanticChunker
+from src.semantic_chunker import SemanticChunker
 
 class DocumentProcessor:
     """
