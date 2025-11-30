@@ -3,7 +3,8 @@ import psycopg2
 import json
 import os 
 from dotenv import load_dotenv
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
+from ranx import Run, fuse, optimize_fusion, Qrels
 
 load_dotenv()
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1024"))
@@ -320,7 +321,7 @@ class HybridSearchDatabase:
                 (limit,),
             )
             # 結果の取得
-            results = []
+            results: List[Dict[str, Any]] = []
             for row in cursor.fetchall():
                 document_id, content, file_path, chunk_index, metadata_json, similarity = row
 
@@ -358,6 +359,159 @@ class HybridSearchDatabase:
             # カーソルを閉じる
             if "cursor" in locals() and cursor:
                 cursor.close()
+    
+    def tokenize_query(self, query: str, expr: Literal["OR", "AND"] = "OR") -> str:
+        """
+        形態素解析(tokenize)して全文検索用のクエリを形成
+
+        Args:
+            query: クエリ
+            expr: OR AND
+
+        Returns:
+            全文検索用のクエリ
+
+        Raises:
+            Exception: 検索に失敗した場合
+        """
+        if expr not in ["OR", "AND"]:
+            raise ValueError()
+
+        try:
+            # 接続がない場合は接続
+            if not self.connection:
+                self.connect()
+
+            # カーソルの作成
+            cursor = self.connection.cursor()
+
+            # pgroonga_tokenizeを使って形態素解析(tokenizerはmecab)
+            cursor.execute("""
+                select pgroonga_tokenize(%s, 'tokenizer', 'TokenMecab')
+                """,
+                (query),
+            )
+            # 結果
+            result = cursor.fetchone()
+            if not result:
+                return []
+
+            raw_tokens = result[0]  # PostgreSQL text[] → Python list[str]
+
+            tokens: List[Dict[str, Any]] = []
+            for token_str in raw_tokens:
+                try:
+                    # text[] の各要素は JSON string なので json.loads する
+                    token_obj = json.loads(token_str)
+                    tokens.append(token_obj)
+                except Exception as e:
+                    # JSON パース失敗時はスキップ
+                    self.logger.warning(f"トークンの JSON パースに失敗: {token_str} ({e})")
+
+            self.logger.info(f"トークン化 '{query}' → {tokens}")
+            
+            expr_str = expr if expr == "OR" else " "
+            return expr_str.join(map(lambda token : token['value'], tokens))
+        
+        except Exception as e:
+            self.logger.error(f"解析中にエラーが発生しました: {str(e)}")
+            raise
+
+        finally:
+            # カーソルを閉じる
+            if "cursor" in locals() and cursor:
+                cursor.close()
+    
+
+    def search_by_fulltext(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        PGroonga を利用して全文検索を行います。
+
+        Args:
+            query: 検索クエリ文字列（PGroonga の &@~ 演算子に渡す文字列）
+            limit: 返す結果の数（デフォルト: 5）
+
+        Returns:
+            検索結果のリスト（search_by_vector と同じ構造）
+                - document_id
+                - content
+                - file_path
+                - chunk_index
+                - metadata (dict)
+                - similarity (PGroonga のスコア)
+        """
+        try:
+            # 接続がない場合は接続
+            if not self.connection:
+                self.connect()
+
+            # カーソルの作成
+            cursor = self.connection.cursor()
+
+            # PGroonga による全文検索
+            # content &@~ %s で複数キーワード（OR/AND）を含む検索が可能
+            # pgroonga_score(tableoid, ctid) でマッチ度スコアを取得
+            cursor.execute(
+                """
+                SELECT
+                    document_id,
+                    content,
+                    file_path,
+                    chunk_index,
+                    metadata,
+                    pgroonga_score(tableoid, ctid) AS similarity
+                FROM
+                    documents
+                WHERE
+                    content &@~ %s
+                ORDER BY
+                    similarity DESC
+                LIMIT %s;
+                """,
+                (query, limit),
+            )
+
+            # 結果の取得（search_by_vector と同じ形式に整形）
+            results: List[Dict[str, Any]] = []
+            for row in cursor.fetchall():
+                document_id, content, file_path, chunk_index, metadata_json, similarity = row
+
+                # メタデータをJSONからデコード（既存メソッドと同じロジック）
+                if metadata_json:
+                    if isinstance(metadata_json, str):
+                        try:
+                            metadata = json.loads(metadata_json)
+                        except json.JSONDecodeError:
+                            metadata = {}
+                    else:
+                        # 既に辞書型の場合はそのまま使用
+                        metadata = metadata_json
+                else:
+                    metadata = {}
+
+                results.append(
+                    {
+                        "document_id": document_id,
+                        "content": content,
+                        "file_path": file_path,
+                        "chunk_index": chunk_index,
+                        "metadata": metadata,
+                        "similarity": similarity,
+                    }
+                )
+
+            self.logger.info(f"全文検索クエリ '{query}' に対して {len(results)} 件の結果が見つかりました")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"全文検索中にエラーが発生しました: {str(e)}")
+            raise
+
+        finally:
+            # カーソルを閉じる
+            if "cursor" in locals() and cursor:
+                cursor.close()
+
 
     def delete_document(self, document_id: str) -> bool:
         """
@@ -709,3 +863,86 @@ class HybridSearchDatabase:
             # カーソルを閉じる
             if "cursor" in locals() and cursor:
                 cursor.close()
+
+    def hybrid_search_rrf(
+        self,
+        query: str,
+        query_embedding: List[float],
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        search_by_fulltext と search_by_vector の結果を
+        RRF (Reciprocal Rank Fusion) で統合したハイブリッド検索を行う。
+
+        Args:
+            query: 全文検索用のクエリ文字列
+            query_embedding: ベクトル検索用のエンベディング
+            limit: 返却する件数（両検索ともこの件数で取得）
+
+        Returns:
+            search_by_vector / search_by_fulltext と同じ形の辞書リスト。
+            similarity には RRF 後のスコアが入る。
+        """
+        # 1. 個別検索
+        fulltext_results = self.search_by_fulltext(query, limit=limit)
+        vector_results = self.search_by_vector(query_embedding, limit=limit)
+
+        # どちらも結果がなければ空
+        if not fulltext_results and not vector_results:
+            return []
+
+        query_id = "q1"
+
+        # 2. ranx 用の Run を作成
+        fulltext_run = Run.from_dict(
+            {
+                query_id: {
+                    r["document_id"]: float(r.get("similarity", 0.0))
+                    for r in fulltext_results
+                }
+            },
+            name="fulltext",
+        )
+
+        vector_run = Run.from_dict(
+            {
+                query_id: {
+                    r["document_id"]: float(r.get("similarity", 0.0))
+                    for r in vector_results
+                }
+            },
+            name="vector",
+        )
+
+        # 3. RRF で融合
+        fused_run = fuse(
+            runs=[fulltext_run, vector_run],
+            method="rrf",   # Reciprocal Rank Fusion
+        )
+
+        fused_scores = fused_run[query_id]  # dict: {document_id: fused_score}
+
+        # 4. document_id -> 元結果 を引けるようにしておく
+        doc_index: Dict[str, Dict[str, Any]] = {}
+        for r in fulltext_results:
+            doc_index.setdefault(r["document_id"], r)
+        for r in vector_results:
+            doc_index.setdefault(r["document_id"], r)
+
+        # 5. RRF スコアでソートして上位 limit 件を返す
+        sorted_items = sorted(
+            fused_scores.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )[:limit]
+
+        results: List[Dict[str, Any]] = []
+        for doc_id, score in sorted_items:
+            base = doc_index.get(doc_id)
+            if base is None:
+                continue
+            item = dict(base)
+            item["similarity"] = score  # RRF スコアに差し替え
+            results.append(item)
+
+        return results
