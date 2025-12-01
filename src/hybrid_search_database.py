@@ -322,7 +322,7 @@ class HybridSearchDatabase:
             )
             # 結果の取得
             results: List[Dict[str, Any]] = []
-            for row in cursor.fetchall():
+            for i, row in enumerate(cursor.fetchall()):
                 document_id, content, file_path, chunk_index, metadata_json, similarity = row
 
                 # メタデータをJSONからデコード
@@ -346,6 +346,7 @@ class HybridSearchDatabase:
                         "chunk_index": chunk_index,
                         "metadata": metadata,
                         "similarity": similarity,
+                        "rank": i + 1,
                     }
                 )
             self.logger.info(f"クエリに対して {len(results)} 件の結果が見つかりました")
@@ -473,7 +474,7 @@ class HybridSearchDatabase:
 
             # 結果の取得（search_by_vector と同じ形式に整形）
             results: List[Dict[str, Any]] = []
-            for row in cursor.fetchall():
+            for i, row in enumerate(cursor.fetchall()):
                 document_id, content, file_path, chunk_index, metadata_json, similarity = row
 
                 # メタデータをJSONからデコード（既存メソッドと同じロジック）
@@ -497,6 +498,7 @@ class HybridSearchDatabase:
                         "chunk_index": chunk_index,
                         "metadata": metadata,
                         "similarity": similarity,
+                        "rank": i + 1,
                     }
                 )
 
@@ -897,17 +899,16 @@ class HybridSearchDatabase:
         fulltext_run = Run.from_dict(
             {
                 query_id: {
-                    r["document_id"]: float(r.get("similarity", 0.0))
+                    r["document_id"]: r.get("rank", limit)
                     for r in fulltext_results
                 }
             },
             name="fulltext",
         )
-
         vector_run = Run.from_dict(
             {
                 query_id: {
-                    r["document_id"]: float(r.get("similarity", 0.0))
+                    r["document_id"]: r.get("rank", limit)
                     for r in vector_results
                 }
             },
@@ -918,6 +919,7 @@ class HybridSearchDatabase:
         fused_run = fuse(
             runs=[fulltext_run, vector_run],
             method="rrf",   # Reciprocal Rank Fusion
+            params={'k': 60}
         )
 
         fused_scores = fused_run[query_id]  # dict: {document_id: fused_score}
