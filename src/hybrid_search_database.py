@@ -80,7 +80,6 @@ class HybridSearchDatabase:
 
             # カーソルの作成
             cursor = self.connection.cursor()
-
             # pgvectorエクステンションの有効化
             cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
             # pgoongaエクステンションの有効化
@@ -240,6 +239,9 @@ class HybridSearchDatabase:
                 values.append(
                     (doc["document_id"], doc["content"], doc["file_path"], doc["chunk_index"], doc["embedding"], metadata_json)
                 )
+            
+            # セッション単位でメモリ増加
+            cursor.execute("SET maintenance_work_mem = '1GB';")
 
             # バッチ挿入
             cursor.executemany(
@@ -388,7 +390,7 @@ class HybridSearchDatabase:
 
             # pgroonga_tokenizeを使って形態素解析(tokenizerはmecab)
             cursor.execute("""
-                select pgroonga_tokenize(%s, 'tokenizer', 'TokenMecab')
+                select pgroonga_tokenize(%s, 'tokenizer', 'TokenMecab', 'normalizer', 'NormalizerNFKC150')
                 """,
                 (query),
             )
@@ -859,6 +861,30 @@ class HybridSearchDatabase:
 
         except Exception as e:
             self.logger.error(f"ドキュメント全文の取得中にエラーが発生しました: {str(e)}")
+            raise
+
+        finally:
+            # カーソルを閉じる
+            if "cursor" in locals() and cursor:
+                cursor.close()
+
+    def maintenance_fulltext_search_index(self):
+        try:
+            # 接続がない場合は接続
+            if not self.connection:
+                self.connect()
+
+            # カーソルの作成
+            cursor = self.connection.cursor()
+
+            # ファイルパスに基づいてドキュメントを取得
+            cursor.execute(
+                """
+                VACUUM ANALYZE idx_documents_pgroonga;
+                """
+            )
+        except Exception as e:
+            self.logger.error(f"全文検索用のインデックス: {str(e)}")
             raise
 
         finally:

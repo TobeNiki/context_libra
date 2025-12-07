@@ -3,7 +3,6 @@
 
 テキストからエンベディングを生成します。
 """
-
 import logging
 import os
 from typing import List
@@ -12,7 +11,6 @@ from dotenv import load_dotenv
 
 # .envの読み込み
 load_dotenv()
-
 
 class EmbeddingGenerator:
     """
@@ -25,7 +23,7 @@ class EmbeddingGenerator:
         logger: ロガー
     """
 
-    def __init__(self, model_name: str = None):
+    def __init__(self):
         """
         EmbeddingGeneratorのコンストラクタ
 

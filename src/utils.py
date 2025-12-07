@@ -1,4 +1,3 @@
-
 import functools
 from typing import Generator, List
 from ja_sentence_segmenter.common.pipeline import make_pipeline
@@ -72,3 +71,36 @@ def cosine_similarity(X: Matrix, Y: Matrix) -> np.ndarray:
             similarity = np.dot(X, Y.T) / np.outer(X_norm, Y_norm)
         similarity[np.isnan(similarity) | np.isinf(similarity)] = 0.0
         return similarity
+    
+
+from janome.tokenizer import Tokenizer
+from janome.analyzer import Analyzer
+from janome.tokenfilter import POSKeepFilter, POSStopFilter, LowerCaseFilter
+from janome.charfilter import UnicodeNormalizeCharFilter, RegexReplaceCharFilter
+from typing import Literal
+
+char_filters = [UnicodeNormalizeCharFilter(), RegexReplaceCharFilter(r"[IiⅠｉ?.*/~=()〝 <>:：《°!！!？（）-]+", "")]
+tokenizer = Tokenizer()
+token_filters = [POSKeepFilter(["名詞", "動詞"]), POSStopFilter(["名詞,非自立", "名詞,数", "名詞,代名詞", "名詞,接尾"]), LowerCaseFilter()]
+analyzer = Analyzer(char_filters=char_filters, tokenizer=tokenizer, token_filters=token_filters)
+
+def tokenize_query_with_janome(query: str, expr: Literal["OR", "AND"] = "OR")->str:
+    """
+        形態素解析(tokenize)して全文検索用のクエリを形成
+
+        Args:
+            query: クエリ
+            expr: OR AND
+
+        Returns:
+            全文検索用のクエリ
+
+        Raises:
+            Exception: 検索に失敗した場合
+    
+    """
+    if expr not in ["OR", "AND"]:
+        raise ValueError()
+
+    expr_str = expr if expr == "OR" else " "
+    return expr_str.join([token.surface for token in analyzer.analyze(query)])

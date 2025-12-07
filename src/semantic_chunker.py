@@ -1,4 +1,4 @@
-
+from injector import singleton, inject
 from typing import List, Dict, cast, Tuple, Literal
 import numpy as np
 from src.embedding_generator import EmbeddingGenerator
@@ -14,25 +14,22 @@ BREAKPOINT_DEFAULTS: Dict[BreakpointThresholdType, float] = {
     "gradient": 95,
 }    
 
+MIN_CHUNK_SIZE = 100
+
 class SemanticChunker:
     # https://github.com/langchain-ai/langchain-experimental/blob/main/libs/experimental/langchain_experimental/text_splitter.py
     def __init__(
         self,
-        breakpoint_threshold_type: BreakpointThresholdType = "percentile",
-        breakpoint_threshold_amount: float | None = None,
-        min_chunk_size: int | None = None,
+        embedding_generator: EmbeddingGenerator,
     ):
-        self.breakpoint_threshold_type = breakpoint_threshold_type
-        if breakpoint_threshold_amount is None:
-            self.breakpoint_threshold_amount = BREAKPOINT_DEFAULTS[
-                breakpoint_threshold_type
-            ]
-        else:
-            self.breakpoint_threshold_amount = breakpoint_threshold_amount
-        self.min_chunk_size = min_chunk_size
+        self.breakpoint_threshold_type = "percentile"
+        self.breakpoint_threshold_amount = BREAKPOINT_DEFAULTS[
+            self.breakpoint_threshold_type
+        ]
+        self.min_chunk_size = MIN_CHUNK_SIZE
         # 日本語テキスト分割
         self.ja_sentence_splitter = ja_sentence_splitter_init()
-        self.embedding_generator = EmbeddingGenerator()
+        self.embedding_generator = embedding_generator
     
 
     def _calculate_breakpoint_threshold(

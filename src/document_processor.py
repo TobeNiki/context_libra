@@ -26,12 +26,12 @@ class DocumentProcessor:
         "pdf": [".pdf"],
     }
 
-    def __init__(self):
+    def __init__(self, semantic_chunker: SemanticChunker):
         """コンストラクタ"""
         # ロガーの設定
         self.logger = logging.getLogger("document_processor")
         self.logger.setLevel(logging.INFO)
-        self.semantic_chunker = SemanticChunker("percentile", min_chunk_size=100)
+        self.semantic_chunker = semantic_chunker
 
     def read_file(self, file_path: str) -> str:
         """
