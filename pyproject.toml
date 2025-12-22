@@ -20,6 +20,7 @@ dependencies = [
     "pytest>=9.0.2",
     "python-dotenv>=1.2.1",
     "ranx>=0.3.21",
+    "rich>=14.2.0",
     "sentence-transformers>=5.1.2",
     "simsimd>=6.5.3",
     "yurenizer>=0.2.2",

@@ -10,10 +10,10 @@ import time
 import logging
 from typing import List, Dict, Any
 
-from src.document_processor import DocumentProcessor
-from src.embedding_generator import EmbeddingGenerator
-from src.hybrid_search_database import HybridSearchDatabase
-from src.utils import tokenize_query_with_janome
+from src.rag.document_processor import DocumentProcessor
+from src.rag.embedding_generator import EmbeddingGenerator
+from src.rag.hybrid_search_database import HybridSearchDatabase
+from src.rag.utils import tokenize_query_with_janome
 
 class RAGService:
     """

@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.rag_tools import create_rag_service_from_env
+from src.rag.rag_tools import create_rag_service_from_env
 
 
 def setup_logging():

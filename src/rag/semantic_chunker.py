@@ -1,8 +1,8 @@
 from injector import singleton, inject
 from typing import List, Dict, cast, Tuple, Literal
 import numpy as np
-from src.embedding_generator import EmbeddingGenerator
-from src.utils import ja_sentence_splitter_init, cosine_similarity
+from src.rag.embedding_generator import EmbeddingGenerator
+from src.rag.utils import ja_sentence_splitter_init, cosine_similarity
 
 BreakpointThresholdType = Literal[
     "percentile", "standard_deviation", "interquartile", "gradient"

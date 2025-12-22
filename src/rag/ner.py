@@ -1,6 +1,6 @@
 from gliner import GLiNER
 import re
-from src.utils import ja_sentence_splitter_init
+from src.rag.utils import ja_sentence_splitter_init
 import torch
 
 DEFAULT_LABELS = [
