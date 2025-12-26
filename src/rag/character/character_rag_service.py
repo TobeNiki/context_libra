@@ -1,24 +1,20 @@
-"""
-RAGサービスモジュール
-
-ドキュメント処理、エンベディング生成、ベクトルデータベースを統合して、
-インデックス化と検索の機能を提供します。
-"""
 
 import os
 import time
 import logging
 from typing import List, Dict, Any
 
-from src.rag.document_processor import DocumentProcessor
-from src.rag.embedding_generator import EmbeddingGenerator
-from src.rag.hybrid_search_database import HybridSearchDatabase
-from src.rag.utils import tokenize_query_with_janome
+from src.rag.character.document_processor import DocumentProcessor
+from src.rag.character.embedding_generator import EmbeddingGenerator
+from src.rag.character.hybrid_search_database import HybridSearchDatabase
+from src.rag.character.utils import tokenize_query_with_janome
 
-class RAGService:
+
+class CharacterRagService:
     """
-    RAGサービスクラス
+    キャラクターRAGサービスクラス
 
+    キャラクターの設定をRagとして扱います。
     ドキュメント処理、エンベディング生成、ベクトルデータベースを統合して、
     インデックス化と検索の機能を提供します。
 
@@ -35,7 +31,7 @@ class RAGService:
         hybrid_search_database: HybridSearchDatabase,
     ):
         """
-        RAGServiceのコンストラクタ
+        キャラクターRAGサービス
 
         Args:
             document_processor: ドキュメント処理クラスのインスタンス
@@ -74,7 +70,7 @@ class RAGService:
         except Exception as e:
             self.logger.error(f"ドキュメント数の取得中にエラーが発生しました: {str(e)}")
             raise
-    
+
     def index_documents(
         self,
         source_dir: str,
@@ -199,7 +195,7 @@ class RAGService:
             self.logger.info(f"クエリ '{query}' の全文検索用のクエリを生成しています...")
             query_fulltext = tokenize_query_with_janome(query, "AND")
 
-            # ベクトル検索
+            # ハイブリッド検索
             self.logger.info(f"クエリ '{query}' でハイブリッド検索を実行しています...")
             # results = self.hybrid_search_database.search_by_vector(query_embedding, limit)
             results = self.hybrid_search_database.hybrid_search_rrf(query_fulltext, query_embedding, limit)

@@ -8,9 +8,9 @@ import os
 
 from typing import Dict, Any
 
-from .document_processor import DocumentProcessor
-from .embedding_generator import EmbeddingGenerator
-from .hybrid_search_database import HybridSearchDatabase
+from .character.document_processor import DocumentProcessor
+from .character.embedding_generator import EmbeddingGenerator
+from .character.hybrid_search_database import HybridSearchDatabase
 from .rag_service import RAGService
 
 from dotenv import load_dotenv
