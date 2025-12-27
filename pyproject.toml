@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "dspy>=3.0.4",
     "gliner>=0.2.22",
     "injector>=0.23.0",
     "ja-sentence-segmenter>=0.0.2",

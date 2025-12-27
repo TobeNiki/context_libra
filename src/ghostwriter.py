@@ -62,6 +62,10 @@ from .printer import Printer
 from agents import LocalShellExecutor
 from pathlib import Path
 import os
+from src.agents.scene_evaluation_agent import scene_evaluation
+from src.agents.assistant_agent import scene_writing_assistant_agent
+
+
 
 class Ghostwriter:
 
@@ -97,14 +101,15 @@ class Ghostwriter:
     async def _planning(self):
         pass 
     
-    async def _get_charactor_info(self):
-        pass 
+    async def _get_charactor_info(self, item):
+        input_data = f"search term: {item}"
 
     async def _understand_immediate_context(self):
         pass
 
     async def _writing_scene(self):
         pass
+
 
     async def _feedback_by_llm(self):
         """
