@@ -101,7 +101,6 @@ user_template = """以下のテキストからノードとリレーションシ�
 
 
 class GraphTransformers:
-
     def __init__(
         self,
         llm: LLMBasicModel,
@@ -119,13 +118,13 @@ class GraphTransformers:
 
     def convert(self, document: str) -> GraphData:
         document = unicodedata.normalize('NFKC', document)
-        
+
         if self.synonym_process:
             document = self.synonym_normalizer.normalize(document, self.normalize_config)
-        
-        
+
+
         response = self.llm.run(
-            content=self.user_prompt.format(text=document), 
+            content=self.user_prompt.format(text=document),
             system_prompt=self.system_prompt,
             output_format=GraphData,
             temperature=0,

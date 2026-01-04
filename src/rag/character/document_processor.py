@@ -8,6 +8,7 @@ import time
 import numpy as np
 import markitdown
 from src.rag.character.semantic_chunker import SemanticChunker
+from src.rag.character.text_chunker import TextChunker
 
 class DocumentProcessor:
     """
@@ -26,12 +27,12 @@ class DocumentProcessor:
         "pdf": [".pdf"],
     }
 
-    def __init__(self, semantic_chunker: SemanticChunker):
+    def __init__(self, text_chunker: TextChunker):
         """コンストラクタ"""
         # ロガーの設定
         self.logger = logging.getLogger("document_processor")
         self.logger.setLevel(logging.INFO)
-        self.semantic_chunker = semantic_chunker
+        self.text_chunker = text_chunker
 
     def read_file(self, file_path: str) -> str:
         """
@@ -102,7 +103,7 @@ class DocumentProcessor:
         except Exception as e:
             self.logger.error(f"ファイル '{file_path}' のマークダウン変換に失敗しました: {str(e)}")
             raise
-    
+
     def calculate_file_hash(self, file_path: str) -> str:
         """
         ファイルのハッシュ値を計算します。
@@ -121,7 +122,7 @@ class DocumentProcessor:
             self.logger.error(f"ファイル '{file_path}' のハッシュ計算に失敗しました: {str(e)}")
             # エラーが発生した場合は、タイムスタンプをハッシュとして使用
             return f"timestamp-{int(time.time())}"
-        
+
     def get_file_metadata(self, file_path: str) -> Dict[str, Any]:
         """
         ファイルのメタデータを取得します。
@@ -181,7 +182,7 @@ class DocumentProcessor:
             self.logger.error(f"ファイルレジストリの保存に失敗しました: {str(e)}")
 
     def process_file(
-        self, file_path: str, processed_dir: str,
+        self, file_path: str, processed_dir: str, chunk_size: int = 500, overlap:int = 100,
     ) -> List[Dict[str, Any]]:
         """
         ファイルを処理します。
@@ -221,7 +222,7 @@ class DocumentProcessor:
             self.logger.info(f"処理済みファイルを保存しました: {processed_file_path}")
 
             # チャンクに分割
-            chunks = self.semantic_chunker.split_chunks(content)
+            chunks = self.text_chunker.split_into_chunks(content, chunk_size=chunk_size, overlap=overlap)
 
             # 結果を作成
             results = []

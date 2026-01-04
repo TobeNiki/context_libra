@@ -2,7 +2,7 @@ from agents import FunctionTool,  RunContextWrapper, function_tool, Agent, gen_t
 from pydantic import BaseModel
 from typing_extensions import Any, TypedDict
 from .rag.rag_tools import create_rag_service_from_env
-import os 
+import os
 
 class SearchParams(TypedDict):
     query: str
@@ -16,13 +16,13 @@ async def search_rag(params: SearchParams) -> str:
     limit = params.get("limit")
     if not query:
         return "エラー: 検索クエリが指定されていません"
-    
+
     try:
         # ドキュメント数を確認
         doc_count = rag_service.get_document_count()
         if doc_count == 0:
             return "インデックスにドキュメントが存在しません。CLIコマンド `python -m src.cli index` を使用してドキュメントをインデックス化してください。"
-        
+
         # 検索を実行（前後のチャンクも取得、ドキュメント全体も取得）
         results = rag_service.search(query, limit)
 
@@ -59,12 +59,12 @@ agent = Agent(
 
 from rich.console import Console
 from .printer import Printer
-from agents import LocalShellExecutor
+from agents import LocalShellExecutor, Runner
 from pathlib import Path
 import os
 from src.agents.scene_evaluation_agent import scene_evaluation
 from src.agents.assistant_agent import scene_writing_assistant_agent
-
+from src.agents.scene_writer_agent import writing_agent
 
 
 class Ghostwriter:
@@ -83,7 +83,7 @@ class Ghostwriter:
                 hide_checkmark=True,
             )
             self.printer.update_item("start", "Starting generate writing...", is_done=True)
-            
+
 
             self.printer.end()
 
@@ -93,28 +93,53 @@ class Ghostwriter:
 
         if not thema_file_path.is_file():
             raise FileNotFoundError(f"{thema_file_path}が見つかりません")
-        
-        
+
+
         thema_text = thema_file_path.read_text(encoding='utf-8')
 
+    async def _get_last_before_scene(self)->str:
+        pass
 
-    async def _planning(self):
-        pass 
-    
-    async def _get_charactor_info(self, item):
-        input_data = f"search term: {item}"
+    async def _get_charactor_info(self, query:str, last_before_scene:str, term:str) -> str:
+        input_data = f"""
+            - 物語全体のテーマ
+            ```{term}```
+            - 描きたいシーン
+            ```{query}```
+            - 直前のシーン
+            ```
+            {last_before_scene}
+            ```
+            以上の事柄から描きたいシーンで登場するであろう人物、物(アイテム)、世界観の設定を抽出し、
+            それぞれの設定情報はツールから取得して、まとめてください。
+        """
+        result = await Runner.run(scene_writing_assistant_agent, input_data)
+        return result.final_output
 
     async def _understand_immediate_context(self):
         pass
 
-    async def _writing_scene(self):
-        pass
+    async def _writing_scene(self, query:str, summarized_last_before_scene:str, term:str):
+        input_data = f"""
+            - 物語全体のテーマ
+            ```{term}```
+            - 描きたいシーン
+            ```{query}```
+            - 直前のシーンの要約
+            ```
+            {summarized_last_before_scene}
+            ```
+            上記を踏まえた上でシーンを描いてください。
+            出力結果はfileに書き込んでください.
+        """
+        result = await Runner.run(writing_agent, input_data)
+
 
 
     async def _feedback_by_llm(self):
         """
         _feedback_by_llm の Docstring
-        
+
         :param self: 説明
 
         1. 直前の話や設計書的に矛盾していないかをチェック
@@ -125,7 +150,7 @@ class Ghostwriter:
         pass
 
     async def _document_proofreading(self):
-        pass 
+        pass
 
     async def _update_steering(self):
         pass

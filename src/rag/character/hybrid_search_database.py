@@ -1,7 +1,7 @@
 import logging
 import psycopg2
 import json
-import os 
+import os
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional, Literal
 from ranx import Run, fuse, optimize_fusion, Qrels
@@ -54,7 +54,7 @@ class HybridSearchDatabase:
         except Exception as e:
             self.logger.error(f"データベースへの接続に失敗しました: {str(e)}")
             raise
-    
+
     def disconnect(self):
         """
         データベースから切断する
@@ -107,7 +107,7 @@ class HybridSearchDatabase:
             """)
             # ベクトル検索
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_documents_embedding ON documents 
+                CREATE INDEX IF NOT EXISTS idx_documents_embedding ON documents
                     USING ivfflat (embedding vector_cosine_ops);
             """)
             # PGroongaインデックスを作成（日本語トークナイザーを使用）
@@ -123,7 +123,7 @@ class HybridSearchDatabase:
             # コミット
             self.connection.commit()
             self.logger.info("データベースを初期化しました")
-            
+
         except Exception as e:
             # ロールバック
             if self.connection:
@@ -175,8 +175,8 @@ class HybridSearchDatabase:
                 """
                 INSERT INTO documents (document_id, content, file_path, chunk_index, embedding, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (document_id) 
-                DO UPDATE SET 
+                ON CONFLICT (document_id)
+                DO UPDATE SET
                     content = EXCLUDED.content,
                     file_path = EXCLUDED.file_path,
                     chunk_index = EXCLUDED.chunk_index,
@@ -239,7 +239,7 @@ class HybridSearchDatabase:
                 values.append(
                     (doc["document_id"], doc["content"], doc["file_path"], doc["chunk_index"], doc["embedding"], metadata_json)
                 )
-            
+
             # セッション単位でメモリ増加
             cursor.execute("SET maintenance_work_mem = '1GB';")
 
@@ -248,8 +248,8 @@ class HybridSearchDatabase:
                 """
                 INSERT INTO documents (document_id, content, file_path, chunk_index, embedding, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (document_id) 
-                DO UPDATE SET 
+                ON CONFLICT (document_id)
+                DO UPDATE SET
                     content = EXCLUDED.content,
                     file_path = EXCLUDED.file_path,
                     chunk_index = EXCLUDED.chunk_index,
@@ -301,7 +301,6 @@ class HybridSearchDatabase:
             # クエリエンベディングをPostgreSQLの配列構文に変換
             embedding_str = str(query_embedding)
             embedding_array = f"ARRAY{embedding_str}::vector"
-
             # ベクトル検索
             cursor.execute(
                 f"""
@@ -317,7 +316,7 @@ class HybridSearchDatabase:
                 WHERE
                     embedding IS NOT NULL
                 ORDER BY
-                    embedding <=> {embedding_array}
+                    similarity desc
                 LIMIT %s;
                 """,
                 (limit,),
@@ -353,7 +352,7 @@ class HybridSearchDatabase:
                 )
             self.logger.info(f"クエリに対して {len(results)} 件の結果が見つかりました")
             return results
-        
+
         except Exception as e:
             self.logger.error(f"ベクトル検索中にエラーが発生しました: {str(e)}")
             raise
@@ -362,7 +361,7 @@ class HybridSearchDatabase:
             # カーソルを閉じる
             if "cursor" in locals() and cursor:
                 cursor.close()
-    
+
     def tokenize_query(self, query: str, expr: Literal["OR", "AND"] = "OR") -> str:
         """
         形態素解析(tokenize)して全文検索用のクエリを形成
@@ -412,10 +411,10 @@ class HybridSearchDatabase:
                     self.logger.warning(f"トークンの JSON パースに失敗: {token_str} ({e})")
 
             self.logger.info(f"トークン化 '{query}' → {tokens}")
-            
+
             expr_str = expr if expr == "OR" else " "
             return expr_str.join(map(lambda token : token['value'], tokens))
-        
+
         except Exception as e:
             self.logger.error(f"解析中にエラーが発生しました: {str(e)}")
             raise
@@ -424,7 +423,7 @@ class HybridSearchDatabase:
             # カーソルを閉じる
             if "cursor" in locals() and cursor:
                 cursor.close()
-    
+
 
     def search_by_fulltext(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
@@ -915,6 +914,8 @@ class HybridSearchDatabase:
         fulltext_results = self.search_by_fulltext(query, limit=limit)
         vector_results = self.search_by_vector(query_embedding, limit=limit)
 
+        print(len(fulltext_results))
+        print(len(vector_results))
         # どちらも結果がなければ空
         if not fulltext_results and not vector_results:
             return []
